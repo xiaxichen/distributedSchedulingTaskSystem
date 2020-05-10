@@ -19,10 +19,13 @@
 日志保存:捕获任务执行输出,保存到MongoDB  
 
 ##web页面
+
 ![masterWeb.png](https://github.com/xiaxichen/distributedSchedulingTaskSystem/blob/master/doc/masterWeb.png)
 
 ##master实现
+
 ![masterWeb.png](https://github.com/xiaxichen/distributedSchedulingTaskSystem/blob/master/doc/master%E5%AE%9E%E7%8E%B0.png)
 
 ##worker实现
+
 ![masterWeb.png](https://github.com/xiaxichen/distributedSchedulingTaskSystem/blob/master/doc/woker%E5%AE%9E%E7%8E%B0.png)
