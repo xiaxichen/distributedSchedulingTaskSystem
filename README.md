@@ -8,15 +8,15 @@
 ##主集群功能
 
 任务管理HTTP接口:增删改查   
-任务日志HTTP接口:查看任务执行历史
+任务日志HTTP接口:查看任务执行历史  
 任务控制HTTP接口:提供强制结束任务的接口
 
 ##woker集群功能
 
-任务同步:监听etcd中/cron/jobs/目录变化
-任务调度:基于cron表达式计算,触发过期任务
-任务执行:协程池并发执行多任务,基于etcdf分布式锁抢占
-日志保存:捕获任务执行输出,保存到MongoDB
+任务同步:监听etcd中/cron/jobs/目录变化  
+任务调度:基于cron表达式计算,触发过期任务  
+任务执行:协程池并发执行多任务,基于etcdf分布式锁抢占  
+日志保存:捕获任务执行输出,保存到MongoDB  
 
 ##web页面
 ![masterWeb.png](https://github.com/xiaxichen/distributedSchedulingTaskSystem/blob/master/doc/masterWeb.png)
