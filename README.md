@@ -29,3 +29,14 @@
 ##worker实现
 
 ![masterWeb.png](https://github.com/xiaxichen/distributedSchedulingTaskSystem/blob/master/doc/woker%E5%AE%9E%E7%8E%B0.png)
+
+#启动
+首先启动etcd集群(单机也可)和mongo;
+其次配置master/main下的配置文件和woker/main下的配置文件;
+```bash
+#master节点
+#进入master/main 
+go run main.go
+#进入worker/main
+go run main.go
+```
