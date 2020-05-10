@@ -17,4 +17,4 @@
 ##master实现
 ![masterWeb.png](https://github.com/xiaxichen/distributedSchedulingTaskSystem/blob/master/doc/master%E5%AE%9E%E7%8E%B0.png)
 ##worker实现
-![masterWeb.png](https://github.com/xiaxichen/distributedSchedulingTaskSystem/blob/master/doc/worker实现.png)
+![masterWeb.png](https://github.com/xiaxichen/distributedSchedulingTaskSystem/blob/master/doc/woker%E5%AE%9E%E7%8E%B0.png)
