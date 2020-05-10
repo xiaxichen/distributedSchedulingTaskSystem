@@ -4,7 +4,10 @@
 *.dll
 *.so
 *.dylib
-
+.idea
+.DS_Store
+.AppleDouble
+.LSOverride
 # Test binary, built with `go test -c`
 *.test
 
