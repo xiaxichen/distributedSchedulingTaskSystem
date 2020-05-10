@@ -1,0 +1,10 @@
+{
+  "etcd_end_points": [
+    "192.168.20.30:2379"
+  ],
+  "etcd_dtail_timeout": 5000,
+  "mongo_uri": "mongodb://192.168.31.126:27017",
+  "mongo_connect_timeout": 5000,
+  "job_log_batch_size": 100,
+  "job_log_commit_time":1000
+}
