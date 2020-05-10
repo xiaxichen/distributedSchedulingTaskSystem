@@ -1,0 +1,12 @@
+{
+  "api_port": 8070,
+  "api_read_timeout": 5000,
+  "api_write_timeout": 5000,
+  "etcd_end_points": [
+    "192.168.20.30:2379"
+  ],
+  "etcd_dtail_timeout": 5000,
+  "webroot": "./webroot",
+  "mongo_uri": "mongodb://192.168.31.126:27017",
+  "mongo_connect_timeout": 5000
+}
