@@ -18,6 +18,7 @@ func InitRoute(con *config.Config) *gin.Engine {
 	route.GET("/job/list", handler.Wrapper(api.HandlerJobList))
 	route.GET("/job/kill", handler.Wrapper(api.HandlerKiller))
 	route.GET("/job/log", handler.Wrapper(api.HandlerJobLog))
+	route.GET("/job/start", handler.Wrapper(api.HandlerStartJob))
 	route.GET("/worker/list", handler.Wrapper(api.HandleWorkerList))
 	route.StaticFile("/", con.Webroot)
 	return route
