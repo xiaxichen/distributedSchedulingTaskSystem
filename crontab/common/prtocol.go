@@ -2,9 +2,11 @@ package common
 
 import (
 	"context"
+	"distributedSchedulingTask/crontab/lib"
 	"encoding/json"
 	"fmt"
 	"github.com/gorhill/cronexpr"
+	Log "github.com/sirupsen/logrus"
 	"strings"
 	"time"
 )
@@ -14,6 +16,7 @@ type Job struct {
 	Name     string `json:"name"`      // 任务名
 	Command  string `json:"command"`   // shell命令
 	CronExpr string `json:"cron_expr"` // Cron 表达式
+	JobType  int    `json:"job_type" ` //任务类型
 }
 
 // JobSchedulePlan:任务计划结构体
@@ -27,6 +30,7 @@ type JobSchedulePlan struct {
 // JobExecuteInfo:任务执行信息
 type JobExecuteInfo struct {
 	Job        *Job               //任务信息
+	JobType    int                //任务类型
 	PlanTime   time.Time          //理论调度时间
 	RealTime   time.Time          //实际调度时间
 	CancelCtx  context.Context    //任务command的上下文
@@ -87,6 +91,7 @@ type BaseJobMgr interface {
 	DeleteJob(*DelJob) (*Job, error)
 	ListJob() ([]*Job, error)
 	KillJob(string) error
+	StartJob(string) error
 }
 
 // JobEvent:任务时间结构体
@@ -128,10 +133,21 @@ func BuildJobEvent(eventType int, job *Job) *JobEvent {
 	}
 }
 
-// BuildJobSchedulePlan:解析任务表达式转化为调度任务
-func BuildJobSchedulePlan(job *Job) (*JobSchedulePlan, error) {
+// BuildJobToTemporarySchedulePlan:将临时任务转化为调度任务
+func BuildJobToTemporarySchedulePlan(job *Job) *JobSchedulePlan {
+	jobSchedulePlan := &JobSchedulePlan{
+		Job:      job,
+		Expr:     nil,
+		NextTime: time.Now(),
+	}
+	return jobSchedulePlan
+}
+
+// BuildJobToSchedulePlan:解析任务表达式转化为调度任务
+func BuildJobToSchedulePlan(job *Job) (*JobSchedulePlan, error) {
 	parse, err := cronexpr.Parse(job.CronExpr)
 	if err != nil {
+		Log.Errorf("解析表达式异常！错误：%s", err)
 		return nil, err
 	}
 	jobSchedulePlan := &JobSchedulePlan{
@@ -147,6 +163,7 @@ func BuildJobExecuteInfo(plan *JobSchedulePlan) *JobExecuteInfo {
 	ctx, cancelFunc := context.WithCancel(context.TODO())
 	jobExecuteinfo := &JobExecuteInfo{
 		Job:        plan.Job,
+		JobType:    JOB_TYPE_CRON,
 		PlanTime:   plan.NextTime,
 		RealTime:   time.Now(),
 		CancelCtx:  ctx,
@@ -156,7 +173,14 @@ func BuildJobExecuteInfo(plan *JobSchedulePlan) *JobExecuteInfo {
 	return jobExecuteinfo
 }
 
-// 提取worker的IP
+// ExtractWorkerIP:提取worker的IP
 func ExtractWorkerIP(regKey string) string {
 	return strings.TrimPrefix(regKey, JOB_WORKER_DIR)
+}
+
+// ExtractJobDir:返回任务路径以及任务名
+func ExtractJobDir(key []byte) (string, string) {
+	eventKvKeyList := strings.Split(lib.Bytes2str(key), "/") //提取任务路径
+	eventKvKey := strings.Join(eventKvKeyList[0:len(eventKvKeyList)-1], "/") + "/"
+	return eventKvKey, eventKvKeyList[len(eventKvKeyList)-1] //返回任务路径和任务名
 }
