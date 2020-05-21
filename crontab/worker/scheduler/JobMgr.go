@@ -19,13 +19,13 @@ var (
 
 // JobMgr:任务调度结构体:
 type JobMgr struct {
-	client       *clientv3.Client //etcd客户端会话
+	client       *clientv3.Client // etcd客户端会话
 	kv           clientv3.KV
-	lease        clientv3.Lease   //etcd租约
-	watcher      clientv3.Watcher //etcd观察对象
-	Timeout      int              //超时时间
-	JobSaveDir   string           //任务etcd地址
-	JobKillerDir string           //强杀任务etcd地址
+	lease        clientv3.Lease   // etcd租约
+	watcher      clientv3.Watcher // etcd观察对象
+	Timeout      int              // 超时时间
+	JobSaveDir   string           // 任务etcd地址
+	JobKillerDir string           // 强杀任务etcd地址
 }
 
 // WokerJobMgr:任务调度结接口
@@ -34,39 +34,70 @@ type WokerJobMgr interface {
 	WatchJobs() error
 }
 
+// switchJobEvent:选择任务事件！
+func (jobMgr *JobMgr) switchJobEvent(eventKvKey string, jobName string, event *clientv3.Event) (*common.JobEvent, error) {
+	switch eventKvKey {
+	case common.JOB_SAVE_DIR:
+		job, err := common.UnJsonfull(event.Kv.Value)
+		if err != nil {
+			//todo:将失败序列化写入日志
+			return nil, err
+		}
+		jobEvent := common.BuildJobEvent(common.JOB_EVEN_SAVE, job)
+		Log.Info(event)
+		return jobEvent, nil
+	case common.JOB_START_DIR:
+		job := &common.Job{Name: jobName, JobType: common.JOB_TYPE_TEMPORARY}
+		jobEvent := common.BuildJobEvent(common.JOB_EVEN_START, job)
+		Log.Info(event)
+		return jobEvent, nil
+	default:
+		//todo:未识别事件
+		Log.Warn("未识别事件：", event)
+		return nil, common.ERR_NOT_FOUND_EVENT
+	}
+}
+
 // WatchJobs:任务观察调度器
 func (jobMgr *JobMgr) WatchJobs() error {
 	timeoutCtx, _ := context.WithTimeout(context.TODO(), time.Duration(int(time.Millisecond)*jobMgr.Timeout))
-	getResp, err := jobMgr.kv.Get(timeoutCtx, common.JOB_SAVE_DIR, clientv3.WithPrefix())
+	getResp, err := jobMgr.kv.Get(timeoutCtx, common.JOB_DIR, clientv3.WithPrefix())
 	if err != nil {
 		return err
 	}
 	for _, kv := range getResp.Kvs {
+		var event *common.JobEvent
 		job, err := common.UnJsonfull(kv.Value)
 		if err == nil {
-			event := common.BuildJobEvent(common.JOB_EVEN_SAVE, job)
+			if job.JobType == common.JOB_TYPE_CRON {
+				event = common.BuildJobEvent(common.JOB_EVEN_SAVE, job)
+			} else if job.JobType == common.JOB_TYPE_TEMPORARY {
+				event = common.BuildJobEvent(common.JOB_EVEN_START, job)
+			} else {
+				Log.Errorf("位置任务类型！%s", common.ERR_NOT_FOUND_JOB_TYPE)
+				continue
+			}
 			Log.Info(event)
 			G_Scheduler.PushJobEvent(event)
 		}
 	}
 	go func() {
-		//获取观察任务起始版本
-		watchStartRevision := getResp.Header.Revision + 1
-		watchChan := jobMgr.watcher.Watch(context.TODO(), common.JOB_SAVE_DIR, clientv3.WithRev(watchStartRevision),
+		watchStartRevision := getResp.Header.Revision + 1 //获取观察任务起始版本
+		watchChan := jobMgr.watcher.Watch(context.TODO(), common.JOB_DIR, clientv3.WithRev(watchStartRevision),
 			clientv3.WithPrefix())
-		//定义任务事件
-		var jobEvent *common.JobEvent
+		var jobEvent *common.JobEvent //定义任务事件
 		for watchResp := range watchChan {
 			for _, event := range watchResp.Events {
 				jobEvent = nil
 				switch event.Type {
 				case mvccpb.PUT: //新建;修改事件
-					job, err := common.UnJsonfull(event.Kv.Value)
+					jobDir, jobName := common.ExtractJobDir(event.Kv.Key)
+					jobEvent, err = jobMgr.switchJobEvent(jobDir, jobName, event)
 					if err != nil {
+						//todo:异常日志记录
+						Log.Errorf("选择事件错误！错误：%s", err)
 						continue
 					}
-					jobEvent = common.BuildJobEvent(common.JOB_EVEN_SAVE, job)
-					Log.Info(event)
 				case mvccpb.DELETE: //删除任务事件
 					jobName := common.ExtractJobName(lib.Bytes2str(event.Kv.Key))
 					job := &common.Job{Name: jobName}
