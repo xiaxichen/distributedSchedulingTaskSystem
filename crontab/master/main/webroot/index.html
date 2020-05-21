@@ -199,6 +199,19 @@
                 }
             })
         })
+        // 开始任务
+        $("#job-list").on("click", ".start-job", function (event) { // javascript bind
+            var jobName = $(this).parents("tr").children(".job-name").text()
+            $.ajax({
+                url: '/job/start',
+                type: 'get',
+                dataType: 'json',
+                data: {name: jobName},
+                complete: function () {
+                    window.location.reload()
+                }
+            })
+        })
         // 杀死任务
         $("#job-list").on("click", ".kill-job", function (event) {
             var jobName = $(this).parents("tr").children(".job-name").text()
@@ -329,6 +342,7 @@
                             .append('<button class="btn btn-danger delete-job">删除</button>')
                             .append('<button class="btn btn-warning kill-job">强杀</button>')
                             .append('<button class="btn btn-success log-job">日志</button>')
+                            .append('<button class="btn btn-default start-job">开始</button>')
                         tr.append($('<td>').append(toolbar))
                         $("#job-list tbody").append(tr)
                     }
