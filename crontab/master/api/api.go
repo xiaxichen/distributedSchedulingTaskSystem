@@ -5,6 +5,7 @@ import (
 	"distributedSchedulingTask/crontab/master"
 	"distributedSchedulingTask/crontab/master/handler"
 	"github.com/gin-gonic/gin"
+	"github.com/gorhill/cronexpr"
 	"net/http"
 	"strconv"
 )
@@ -15,6 +16,14 @@ func HandlerJobSave(ctx *gin.Context) error {
 	err := ctx.BindJSON(data)
 	if err != nil {
 		return handler.ParameterError("Post Data Err")
+	}
+	if data.CronExpr == "" {
+		data.JobType = common.JOB_TYPE_TEMPORARY
+	} else {
+		_, err = cronexpr.Parse(data.CronExpr)
+		if err != nil {
+			return err
+		}
 	}
 	job, err := master.G_jobMgr.SaveJob(data)
 	if err != nil {
@@ -92,6 +101,21 @@ func HandlerKiller(ctx *gin.Context) error {
 	query, b := ctx.GetQuery("name")
 	if b {
 		err := master.G_jobMgr.KillJob(query)
+		if err != nil {
+			return err
+		}
+		ctx.JSON(http.StatusOK, common.Response{Error: 0, Msg: "", Data: nil})
+	} else {
+		ctx.JSON(http.StatusOK, common.Response{Error: -1, Msg: "param error!", Data: nil})
+	}
+	return nil
+}
+
+// HandlerStartJob:开始指定任务
+func HandlerStartJob(ctx *gin.Context) error {
+	query, b := ctx.GetQuery("name")
+	if b {
+		err := master.G_jobMgr.StartJob(query)
 		if err != nil {
 			return err
 		}
