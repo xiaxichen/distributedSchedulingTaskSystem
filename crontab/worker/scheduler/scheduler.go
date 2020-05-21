@@ -11,9 +11,9 @@ import (
 // Scheduler:调度任务体
 type Scheduler struct {
 	jobEventChan      chan *common.JobEvent
-	jobPlanTable      map[string]*common.JobSchedulePlan
-	jobExecutingTable map[string]*common.JobExecuteInfo
-	jobResultChan     chan *common.JobExecuteResult //结果队列
+	jobPlanTable      map[string]*common.JobSchedulePlan //任务队列
+	jobExecutingTable map[string]*common.JobExecuteInfo  //执行队列
+	jobResultChan     chan *common.JobExecuteResult      //结果队列
 }
 
 var (
@@ -21,24 +21,43 @@ var (
 )
 
 // handlerJobEvent:处理任务理事件
-func (scheduler *Scheduler) handlerJobEvent(jobEvent *common.JobEvent) {
+func (scheduler *Scheduler) handlerJobEvent(jobEvent *common.JobEvent) error {
 	switch jobEvent.EventType {
+	case common.JOB_EVEN_START:
+		// 执行临时任务
+		if _, isRun := scheduler.jobExecutingTable[jobEvent.Job.Name]; isRun {
+			return common.ERR_JOB_IS_RUNNING
+		} else {
+			plan := common.BuildJobToTemporarySchedulePlan(jobEvent.Job)
+			scheduler.TryStartJob(plan)
+		}
+
 	case common.JOB_EVEN_SAVE:
-		plan, err := common.BuildJobSchedulePlan(jobEvent.Job)
+		plan, err := common.BuildJobToSchedulePlan(jobEvent.Job)
 		if err != nil {
-			return
+			Log.Errorf("Cron解析失败！错误:%s", err)
+			return nil
 		}
 		scheduler.jobPlanTable[jobEvent.Job.Name] = plan
+
 	case common.JOB_EVEN_DELETE:
 		if _, PlanExit := scheduler.jobPlanTable[jobEvent.Job.Name]; PlanExit {
 			delete(scheduler.jobPlanTable, jobEvent.Job.Name)
 		}
+
 	case common.JOB_EVEN_KILL:
 		//取消command执行 判断任务是否在执行中
 		if job, isRun := scheduler.jobExecutingTable[jobEvent.Job.Name]; isRun {
 			job.CancelFunc() //触发command杀死子进程
+		} else {
+			return common.ERR_JOB_NOT_RUNNING
 		}
+
+	default:
+		return common.ERR_NOT_FOUND_EVENT
 	}
+
+	return nil
 }
 
 // TryStartJob:尝试开始任务
@@ -49,7 +68,6 @@ func (scheduler *Scheduler) TryStartJob(jobPlan *common.JobSchedulePlan) {
 	} else {
 		jobExecuteInfo := common.BuildJobExecuteInfo(jobPlan)
 		scheduler.jobExecutingTable[jobExecuteInfo.Job.Name] = jobExecuteInfo
-		//TODO:执行任务
 		Log.Info("执行任务：", jobExecuteInfo.Job.Name)
 		G_executor.ExecuteJob(jobExecuteInfo)
 	}
@@ -58,20 +76,19 @@ func (scheduler *Scheduler) TryStartJob(jobPlan *common.JobSchedulePlan) {
 // TryScheduler:重新计算任务调度状态
 func (scheduler *Scheduler) TryScheduler() time.Duration {
 	var nearTime *time.Time
-
 	if len(scheduler.jobPlanTable) == 0 {
 		return 1 * time.Second
 	}
-
 	now := time.Now()
 	for _, jobPlan := range scheduler.jobPlanTable {
-		if jobPlan.NextTime.Before(now) || jobPlan.NextTime.Equal(now) {
-			//尝试执行任务
-			scheduler.TryStartJob(jobPlan)
-			jobPlan.NextTime = jobPlan.Expr.Next(now) //更新下次任务执行时间
-		}
-		if nearTime == nil || jobPlan.NextTime.Before(*nearTime) {
-			nearTime = &jobPlan.NextTime
+		if jobPlan.Job.JobType == common.JOB_TYPE_CRON {
+			if jobPlan.NextTime.Before(now) || jobPlan.NextTime.Equal(now) {
+				scheduler.TryStartJob(jobPlan)            //尝试执行任务
+				jobPlan.NextTime = jobPlan.Expr.Next(now) //更新下次任务执行时间
+			}
+			if nearTime == nil || jobPlan.NextTime.Before(*nearTime) {
+				nearTime = &jobPlan.NextTime
+			}
 		}
 	}
 	// 下次调度时间（最近要执行的调度时间 - 当前时间）
@@ -109,7 +126,17 @@ func (scheduler *Scheduler) Loop() {
 	for {
 		select {
 		case event := <-scheduler.jobEventChan: //监听任务变化事件
-			scheduler.handlerJobEvent(event)
+			if event.Job.JobType == common.JOB_TYPE_CRON {
+				err := scheduler.handlerJobEvent(event)
+				if err != nil {
+					Log.Errorf("异常事件！任务名：%s,任务事件类型：%s,错误信息：%s", event.Job.Name, event.EventType, err)
+				}
+			} else if event.Job.JobType == common.JOB_TYPE_TEMPORARY {
+				err := scheduler.handlerJobEvent(event)
+				if err != nil {
+					Log.Errorf("异常事件！任务名：%s,任务事件类型：%s,错误信息：%s", event.Job.Name, event.EventType, err)
+				}
+			}
 		case <-timer.C:
 		case JobResult := <-scheduler.jobResultChan: //监听任务结果
 			scheduler.handlerJobResult(JobResult)
@@ -117,6 +144,7 @@ func (scheduler *Scheduler) Loop() {
 		schedulerAfter = scheduler.TryScheduler()
 		//重置调度间隔
 		timer.Reset(schedulerAfter)
+		time.Sleep(1000 * time.Millisecond)
 	}
 }
 
