@@ -1,5 +1,5 @@
 {
-  "api_port": 8070,
+  "api_port": 8000,
   "api_read_timeout": 5000,
   "api_write_timeout": 5000,
   "etcd_end_points": [
