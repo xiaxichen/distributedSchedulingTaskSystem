@@ -21,6 +21,7 @@ type JobMgr struct {
 	lease        clientv3.Lease
 	Timeout      int
 	JobSaveDir   string
+	JobStartDir  string
 	JobKillerDir string
 }
 
@@ -105,6 +106,23 @@ func (jobMgr *JobMgr) KillJob(name string) error {
 	return nil
 }
 
+// StartJob:开始任务
+func (jobMgr *JobMgr) StartJob(name string) error {
+	StartKey := jobMgr.JobStartDir + name
+	timeoutCtx, _ := context.WithTimeout(context.TODO(), time.Duration(int(time.Millisecond)*jobMgr.Timeout))
+	LeaseGrant, err := jobMgr.lease.Grant(timeoutCtx, 1)
+	if err != nil {
+		return err
+	}
+	LeaseId := LeaseGrant.ID
+	timeoutCtx, _ = context.WithTimeout(context.TODO(), time.Duration(int(time.Millisecond)*jobMgr.Timeout))
+	_, err = jobMgr.kv.Put(timeoutCtx, StartKey, "", clientv3.WithLease(LeaseId))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // InitJobMgr:初始化任务
 func InitJobMgr(con *config.Config) error {
 	c := clientv3.Config{
@@ -124,6 +142,7 @@ func InitJobMgr(con *config.Config) error {
 		Timeout:      con.EtcdDtailTimeout,
 		JobSaveDir:   common.JOB_SAVE_DIR,
 		JobKillerDir: common.JOB_KILL_DIR,
+		JobStartDir:  common.JOB_START_DIR,
 	}
 	return err
 }
